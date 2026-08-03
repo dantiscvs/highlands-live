@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#0d1117">
 <meta name="description" content="Na żywo: 513 km rowerem przez Szkockie Highlands, 5–12 sierpnia 2026.">
 <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
@@ -134,10 +135,26 @@ const PL = { dan:'Michał', kuba:'Kuba', maciek:'Maciek' };
 const PC = { dan:'#56d364', kuba:'#79c0ff', maciek:'#d2a8ff' };
 const PBG = { dan:'#0d4a2e', kuba:'#0c2d6b', maciek:'#2d1f5e' };
 
-// Placeholder — zastępowane odczytem z Supabase (Projekt B: updates/livetrack/progress)
+const PUB_URL = 'https://evlmgtoysvcumluwmusa.supabase.co';
+const PUB_KEY = 'sb_publishable_EBGf9roabpx5-brXuia6ug_YWkOVc4K';
+const pub = supabase.createClient(PUB_URL, PUB_KEY);
+
 let progress = { day: null, ridden_km: 0, total_km: 513 };
 let livetrack = [];
 let updates = [];
+
+async function loadLiveData() {
+  try {
+    const [pRes, lRes, uRes] = await Promise.all([
+      pub.from('progress').select('*').eq('id', 'current').maybeSingle(),
+      pub.from('livetrack').select('*'),
+      pub.from('updates').select('*').order('created_at', { ascending: false }),
+    ]);
+    if (pRes.data) progress = pRes.data;
+    if (lRes.data) livetrack = lRes.data;
+    if (uRes.data) updates = uRes.data;
+  } catch (e) { console.warn('loadLiveData:', e.message); }
+}
 
 function esc(s) { return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -351,13 +368,23 @@ function renderStages() {
   }).join('');
 }
 
-function init() {
+function renderAll() {
   renderHero();
   renderProgress();
   renderLive();
   document.getElementById('mapWrap').innerHTML = buildMap();
   renderGallery();
+}
+
+async function init() {
+  renderAll();
   renderStages();
+  await loadLiveData();
+  renderAll();
+  setInterval(async () => {
+    await loadLiveData();
+    renderAll();
+  }, 60000);
 }
 
 document.addEventListener('DOMContentLoaded', init);
